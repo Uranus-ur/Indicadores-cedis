@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control Semanal de Salidas · CEDIS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#F1F3F6;
+    --surface:#FFFFFF;
+    --ink:#171A21;
+    --muted:#6B7280;
+    --faint:#9AA1AC;
+    --accent:#1F5FEB;
+    --accent-ink:#0E3FB0;
+    --accent-soft:#E8EFFE;
+    --warn:#C2760C;
+    --warn-soft:#FBEEDB;
+    --grid-line:#E3E6EC;
+    --good:#1E8E5A;
+    --bad:#D6402C;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding:28px 20px 60px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;}
+
+  header{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:20px;
+    flex-wrap:wrap;
+    margin-bottom:18px;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+    background:var(--accent-soft);
+    display:inline-block;
+    padding:3px 8px;
+    border-radius:5px;
+    margin-bottom:10px;
+  }
+  h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:26px;
+    font-weight:700;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  h1 .bodega-tag{color:var(--accent-ink);}
+  .weeknav{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:var(--surface);
+    border:1px solid var(--grid-line);
+    border-radius:999px;
+    padding:6px 8px 6px 16px;
+  }
+  .weeknav .range{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--ink);
+    min-width:210px;
+    text-align:center;
+  }
+  .navbtn{
+    width:30px;height:30px;
+    border-radius:50%;
+    border:1px solid var(--grid-line);
+    background:var(--surface);
+    color:var(--ink);
+    font-size:15px;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:background .15s;
+  }
+  .navbtn:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);}
+  .todaybtn{
+    font-family:'Inter',sans-serif;
+    font-size:12px;font-weight:600;
+    color:var(--accent-ink);
+    background:var(--accent-soft);
+    border:none;
+    border-radius:999px;
+    padding:6px 12px;
+    cursor:pointer;
+  }
+  .exportbtn{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:13px;font-weight:600;
+    color:#fff;
+    background:var(--good);
+    border:none;
+    border-radius:999px;
+    padding:10px 18px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:filter .15s;
+  }
+  .exportbtn:hover{filter:brightness(1.08);}
+  .exportbtn:disabled{opacity:.6;cursor:wait;}
+  .export-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:22px;
+  }
+  .export-hint{font-size:12px;color:var(--faint);}
+
+  .bodega-selector{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-bottom:22px;
+  }
+  .bodega-pill{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:13px;
+    font-weight:600;
+    padding:9px 16px;
+    border-radius:999px;
+    border:1px solid var(--grid-line);
+    background:var(--surface);
+    color:var(--muted);
+    cursor:pointer;
+    transition:all .15s;
+  }
+  .bodega-pill:hover{border-color:var(--accent);color:var(--accent-ink);}
+  .bodega-pill.active{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#fff;
+  }
+
+  .cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));
+    gap:12px;
+    margin-bottom:22px;
+  }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--grid-line);
+    border-radius:var(--radius);
+    padding:16px 18px;
+  }
+  .card .label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--muted);
+    font-weight:600;
+    margin-bottom:8px;
+  }
+  .card .value{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:26px;
+    font-weight:600;
+    color:var(--ink);
+  }
+  .card .sub{
+    font-size:12px;
+    color:var(--faint);
+    margin-top:4px;
+  }
+  .card .subline{
+    font-size:11px;
+    color:var(--muted);
+    margin-top:3px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .card .subline.up{color:var(--bad);}
+  .card .subline.down{color:var(--good);}
+  .card .subline.flat{color:var(--muted);}
+  .card.warn .value{color:var(--warn);}
+  .card.accent .value{color:var(--accent-ink);}
+  .card.navy .value{color:#1F3A5F;}
+  .card.burgundy .value{color:#7B2E3B;}
+
+  .alerts-wrap{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-bottom:22px;
+  }
+  .alert-item{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    background:#FDF2F2;
+    border:1px solid #F3C6C6;
+    border-left:4px solid var(--bad);
+    border-radius:8px;
+    padding:12px 16px;
+    font-size:13px;
+    color:#7A1F1F;
+    line-height:1.4;
+  }
+  .alert-item.warn-alert{
+    background:#FBEEDB;
+    border-color:#F0D2A6;
+    border-left-color:var(--warn);
+    color:#7A4A0C;
+  }
+  .alert-item .icon{ font-size:15px; line-height:1.3; flex-shrink:0; }
+
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--grid-line);
+    border-radius:var(--radius);
+    overflow:hidden;
+    margin-bottom:22px;
+  }
+  .panel-title{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 18px;
+    border-bottom:1px solid var(--grid-line);
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .panel-title h2{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:15px;
+    margin:0;
+    font-weight:600;
+  }
+  .panel-title .hint{
+    font-size:12px;
+    color:var(--faint);
+  }
+  .tablescroll{overflow-x:auto;}
+  table{
+    border-collapse:collapse;
+    width:100%;
+    min-width:920px;
+  }
+  th,td{
+    padding:0;
+    border-bottom:1px solid var(--grid-line);
+    border-right:1px solid var(--grid-line);
+  }
+  th:last-child,td:last-child{border-right:none;}
+  thead th{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    font-weight:500;
+    padding:8px 8px;
+    background:#FAFBFC;
+    text-align:center;
+    line-height:1.5;
+  }
+  thead th .daynum{
+    display:block;
+    font-size:12px;
+    font-weight:600;
+    color:var(--ink);
+    letter-spacing:0;
+  }
+  thead th.product-head{text-align:left;padding-left:18px;}
+  tbody th{
+    text-align:left;
+    padding:10px 18px;
+    font-size:13.5px;
+    font-weight:600;
+    color:var(--ink);
+    white-space:nowrap;
+    background:var(--surface);
+    position:sticky;
+    left:0;
+  }
+  tbody td.daycell{padding:4px;}
+  tbody td.daycell input{
+    width:100%;
+    border:none;
+    background:transparent;
+    text-align:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14px;
+    color:var(--ink);
+    padding:10px 4px;
+    border-radius:6px;
+    -moz-appearance:textfield;
+  }
+  tbody td.daycell input::-webkit-outer-spin-button,
+  tbody td.daycell input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  tbody td.daycell input:focus{
+    outline:2px solid var(--accent);
+    outline-offset:-2px;
+    background:var(--accent-soft);
+  }
+  tbody tr:hover td.daycell{background:#FAFBFC;}
+  tbody tr:hover td.daycell input:focus{background:var(--accent-soft);}
+  td.total-col{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    text-align:center;
+    color:var(--accent-ink);
+    background:#FAFBFC;
+    min-width:56px;
+  }
+  td.spark-col{padding:6px 12px;min-width:110px;}
+  .spark{display:flex;align-items:flex-end;gap:2px;height:26px;}
+  .spark i{
+    flex:1;
+    background:var(--accent);
+    opacity:.55;
+    border-radius:1px;
+    min-height:2px;
+  }
+  tfoot th, tfoot td{
+    background:#F5F7FA;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    padding:10px 8px;
+    text-align:center;
+    color:var(--ink);
+  }
+  tfoot th{text-align:left;padding-left:18px;}
+
+  .section-salida thead th{background:var(--accent-soft);color:var(--accent-ink);}
+  .section-salida thead th .daynum{color:var(--accent-ink);}
+  .section-salida td.total-col{color:var(--accent-ink);}
+  .section-salida .spark i{background:var(--accent);}
+  .section-salida tfoot th, .section-salida tfoot td{background:var(--accent-soft);color:var(--accent-ink);}
+
+  .section-devol thead th{background:#FBE4E1;color:var(--bad);}
+  .section-devol thead th .daynum{color:var(--bad);}
+  .section-devol td.total-col{color:var(--bad);}
+  .section-devol .spark i{background:var(--bad);}
+  .section-devol tfoot th, .section-devol tfoot td{background:#FBE4E1;color:var(--bad);}
+
+  tr.row-salidas td.total-col{color:var(--accent-ink);}
+  tr.row-salidas .spark i{background:var(--accent);}
+  tr.row-devoluciones td.total-col{color:var(--bad);}
+  tr.row-devoluciones .spark i{background:var(--bad);}
+
+  .cedis-table{width:100%;border-collapse:collapse;}
+  .cedis-table th, .cedis-table td{
+    padding:10px 16px;
+    text-align:center;
+    border-bottom:1px solid var(--grid-line);
+    font-size:13.5px;
+  }
+  .cedis-table th{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    background:#FAFBFC;
+  }
+  .cedis-table td:first-child, .cedis-table th:first-child{text-align:left;}
+  .cedis-table td.bodega-name{font-weight:600;font-family:'Space Grotesk',sans-serif;}
+  .cedis-table td.num{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .cedis-table tr.current-row{background:var(--accent-soft);}
+  .cedis-table tr.current-row td{color:var(--accent-ink);}
+
+  .chartpanel{padding:18px;}
+  .chart-legend{
+    display:flex;gap:18px;flex-wrap:wrap;
+    font-size:12px;color:var(--muted);
+    margin-top:10px;
+  }
+  .chart-legend span{display:inline-flex;align-items:center;gap:6px;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  .dot.line{width:16px;height:2px;border-radius:0;}
+  .empty-state{
+    text-align:center;
+    color:var(--faint);
+    font-size:13px;
+    padding:30px 10px;
+  }
+  .compare-stats{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:1px;
+    background:var(--grid-line);
+    border-top:1px solid var(--grid-line);
+  }
+  .compare-stats .stat{
+    background:var(--surface);
+    padding:14px 18px;
+  }
+  .compare-stats .stat .label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    font-weight:600;
+    margin-bottom:6px;
+  }
+  .compare-stats .stat .value{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:19px;
+    font-weight:600;
+  }
+  .compare-stats .stat .sub{
+    font-size:11.5px;
+    color:var(--faint);
+    margin-top:3px;
+  }
+
+  footer{
+    text-align:center;
+    font-size:11px;
+    color:var(--faint);
+    margin-top:10px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+
+  @media (max-width:640px){
+    .cards{grid-template-columns:repeat(2,1fr);}
+    .compare-stats{grid-template-columns:1fr;}
+    h1{font-size:20px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="eyebrow">Control estadístico &middot; Salidas de equipos por CEDIS</div>
+      <h1>Control semanal · <span class="bodega-tag" id="bodegaTitle">OGUA</span></h1>
+    </div>
+    <div class="weeknav">
+      <button class="navbtn" id="prevWeek" aria-label="Semana anterior">&#8249;</button>
+      <div class="range" id="weekRange">—</div>
+      <button class="navbtn" id="nextWeek" aria-label="Semana siguiente">&#8250;</button>
+      <button class="todaybtn" id="gotoToday">Hoy</button>
+    </div>
+  </header>
+
+  <div class="bodega-selector" id="bodegaSelector"></div>
+
+  <div id="alertsBanner"></div>
+
+  <div class="export-row">
+    <div class="export-hint">Descarga toda la información: detalle diario por CEDIS, resumen, pronóstico por equipo y pronóstico general.</div>
+    <button class="exportbtn" id="exportBtn">&#8681; Descargar historial en Excel</button>
+  </div>
+
+  <section class="cards">
+    <div class="card navy">
+      <div class="label">Salidas totales · semana</div>
+      <div class="value" id="cardTotalSalidas">0</div>
+      <div class="sub" id="cardSalidasSub">0% neto tras devoluciones</div>
+      <div class="subline" id="cardSalidasWow"></div>
+    </div>
+    <div class="card burgundy">
+      <div class="label">Devoluciones totales semana</div>
+      <div class="value" id="cardTotalDevol">0</div>
+      <div class="sub" id="cardTasaDevol">0% sobre salidas</div>
+      <div class="subline" id="cardDevolWow"></div>
+    </div>
+    <div class="card">
+      <div class="label">Equipo con más salidas</div>
+      <div class="value" id="cardTopProducto" style="font-size:18px;">—</div>
+      <div class="sub" id="cardTopValor">0 unidades</div>
+    </div>
+    <div class="card accent">
+      <div class="label">Promedio diario de salidas</div>
+      <div class="value" id="cardPromedioDiaSalidas">0</div>
+      <div class="sub">Registro general ÷ días trabajados</div>
+    </div>
+    <div class="card burgundy">
+      <div class="label">Promedio diario de devoluciones</div>
+      <div class="value" id="cardPromedioDiaDevol">0</div>
+      <div class="sub">Registro general ÷ días trabajados</div>
+    </div>
+  </section>
+
+  <div class="panel section-salida">
+    <div class="panel-title">
+      <h2>1 · Control de salidas por equipo</h2>
+      <div class="hint">Escribe la cantidad que sale de cada equipo, por día</div>
+    </div>
+    <div class="tablescroll">
+      <table id="mainTable">
+        <thead><tr id="mainHeadRow"></tr></thead>
+        <tbody id="mainBody"></tbody>
+        <tfoot>
+          <tr id="mainFooterRow"></tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">
+      <h2>Demanda y pronóstico por equipo</h2>
+      <div class="hint">Historial hasta la semana actual, con proyección punteada hacia adelante · <span id="forecastBodega">OGUA</span></div>
+    </div>
+    <div class="chartpanel" id="demandChartPanel">
+      <div class="empty-state">Aún no hay suficientes semanas guardadas para comparar la demanda.</div>
+    </div>
+    <div class="tablescroll">
+      <table class="cedis-table" id="forecastTable"></table>
+    </div>
+  </div>
+
+  <div class="panel section-devol">
+    <div class="panel-title">
+      <h2>2 · Control de devoluciones por equipo</h2>
+      <div class="hint">Escribe la cantidad que se devuelve de cada equipo, por día</div>
+    </div>
+    <div class="tablescroll">
+      <table id="devolProductsTable">
+        <thead><tr id="devolProductsHeadRow"></tr></thead>
+        <tbody id="devolProductsBody"></tbody>
+        <tfoot>
+          <tr id="devolProductsFooterRow"></tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">
+      <h2>3 · Registro general de salidas y devoluciones</h2>
+      <div class="hint">Se llena a mano, no se calcula a partir de los indicadores 1 y 2</div>
+    </div>
+    <div class="tablescroll">
+      <table id="registroTable">
+        <thead><tr id="registroHeadRow"></tr></thead>
+        <tbody id="registroBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">
+      <h2>Reporte comparativo · CEDIS</h2>
+      <div class="hint">Semana actual, todas las bodegas (según el registro general)</div>
+    </div>
+    <div class="tablescroll">
+      <table class="cedis-table" id="cedisCompareTable"></table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">
+      <h2>Carta de control · salidas vs. devoluciones por semana</h2>
+      <div class="hint" id="chartHint">Historial hasta hoy + proyección, de <span id="chartBodega">OGUA</span> (registro general)</div>
+    </div>
+    <div class="chartpanel" id="chartPanel">
+      <div class="empty-state">Aún no hay suficientes semanas guardadas para mostrar la tendencia.</div>
+    </div>
+    <div class="compare-stats" id="compareStats"></div>
+  </div>
+
+  <footer id="saveStatus">Los datos se guardan automáticamente, separados por bodega.</footer>
+
+</div>
+
+<script>
+/* =====================================================================
+   CONFIGURACIÓN DE SUPABASE — reemplaza estos dos valores por los tuyos
+   Los encuentras en tu proyecto de Supabase: Project Settings > API
+   ===================================================================== */
+const SUPABASE_URL = "https://ifwtjxashfkdytuuqrlu.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_AjKlPDSBmwJ_zxVxL6RxEw_xJcyGQ-p";
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* Adaptador que imita la API de window.storage que usaba la versión de Claude,
+   pero guardando los datos en la tabla kv_store de Supabase (Postgres real).
+   El segundo parámetro "shared" ya no aplica aquí (todo se guarda en una sola
+   tabla compartida por todos los que usan esta página), por eso se ignora. */
+const storage = {
+  async get(key, _shared){
+    const { data, error } = await supabaseClient
+      .from('kv_store')
+      .select('value')
+      .eq('key', key)
+      .maybeSingle();
+    if(error) throw error;
+    if(!data) return null;
+    return { key, value: data.value };
+  },
+  async set(key, value, _shared){
+    const { error } = await supabaseClient
+      .from('kv_store')
+      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    if(error) throw error;
+    return { key, value };
+  },
+  async delete(key, _shared){
+    const { error } = await supabaseClient.from('kv_store').delete().eq('key', key);
+    if(error) throw error;
+    return { key, deleted: true };
+  },
+  async list(prefix, _shared){
+    let query = supabaseClient.from('kv_store').select('key');
+    if(prefix) query = query.like('key', `${prefix}%`);
+    const { data, error } = await query;
+    if(error) throw error;
+    return { keys: (data || []).map(r => r.key) };
+  }
+};
+
+const PRODUCTS = ["ORB","PHANTOM F2","TV BOX I96 Z8","PHANTOM WIFI 6","SW 2.5G ADMIN","SW 1G ADMIN"];
+const CEDIS = ["OGUA","BELLO","MONTE VIDEO","ORIO","ALCAZARES"];
+const DAY_LABELS = ["Lun","Mar","Mié","Jue","Vie","Sáb"];
+const MONTHS = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+
+let currentMonday = getMonday(new Date());
+let currentBodega = CEDIS[0];
+let viendoSemanaActual = true; // true mientras no se navegue manualmente a otra semana
+let weekState = null;
+let saveTimer = null;
+let prevWeekTotals = { s:0, d:0, hasPrev:false };
+
+function slug(bodega){ return bodega.replace(/\s+/g,'_').toUpperCase(); }
+function slugId(s){ return s.replace(/[^A-Za-z0-9]+/g,'-'); }
+function zeros(){ return [0,0,0,0,0,0]; }
+/* Corrige datos guardados antes de quitar el domingo (traían 7 valores):
+   recorta a 6 días o completa con ceros si hacen falta. */
+function normalizeDays(arr){
+  const n = DAY_LABELS.length;
+  const out = (arr || []).slice(0, n);
+  while(out.length < n) out.push(0);
+  return out;
+}
+function dayIndexes(){ return DAY_LABELS.map((_,i)=>i); }
+
+function getMonday(d){
+  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day = date.getDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  date.setDate(date.getDate() + diff);
+  return date;
+}
+function isoDate(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function weekKey(bodega, monday){ return `bodega:${slug(bodega)}:week:${isoDate(monday)}`; }
+function addDays(d,n){ const nd = new Date(d); nd.setDate(nd.getDate()+n); return nd; }
+
+function emptyWeek(){
+  const products = {};
+  const devolProducts = {};
+  PRODUCTS.forEach(p => { products[p] = zeros(); devolProducts[p] = zeros(); });
+  return { products, devolProducts, registro: { salidas: zeros(), devoluciones: zeros() } };
+}
+
+function totalsFromRecord(parsed){
+  if(parsed.registro){
+    const s = normalizeDays(parsed.registro.salidas).reduce((a,b)=>a+b,0);
+    const d = normalizeDays(parsed.registro.devoluciones).reduce((a,b)=>a+b,0);
+    return { s, d };
+  }
+  let s = 0;
+  PRODUCTS.forEach(p => { if(parsed.products && parsed.products[p]) s += normalizeDays(parsed.products[p]).reduce((a,b)=>a+b,0); });
+  const d = normalizeDays(parsed.devoluciones).reduce((a,b)=>a+b,0);
+  return { s, d };
+}
+
+function formatRange(monday){
+  const saturday = addDays(monday,5);
+  const sameMonth = monday.getMonth() === saturday.getMonth();
+  const leftFull = sameMonth ? `${monday.getDate()}` : `${monday.getDate()} de ${MONTHS[monday.getMonth()]}`;
+  const right = `${saturday.getDate()} de ${MONTHS[saturday.getMonth()]} ${saturday.getFullYear()}`;
+  return `${leftFull} – ${right}`;
+}
+
+function dayDates(monday){
+  return Array.from({length:DAY_LABELS.length}, (_,i) => addDays(monday,i));
+}
+function shortDate(d){
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+async function loadWeek(bodega, monday){
+  const key = weekKey(bodega, monday);
+  try{
+    const res = await storage.get(key, false);
+    if(res && res.value){
+      const parsed = JSON.parse(res.value);
+      const products = {};
+      const devolProducts = {};
+      PRODUCTS.forEach(p => {
+        products[p] = normalizeDays(parsed.products && parsed.products[p]);
+        devolProducts[p] = normalizeDays(parsed.devolProducts && parsed.devolProducts[p]);
+      });
+      let registro;
+      if(parsed.registro){
+        registro = {
+          salidas: normalizeDays(parsed.registro.salidas),
+          devoluciones: normalizeDays(parsed.registro.devoluciones)
+        };
+      } else {
+        registro = { salidas: zeros(), devoluciones: normalizeDays(parsed.devoluciones) };
+      }
+      weekState = { products, devolProducts, registro };
+    } else {
+      weekState = emptyWeek();
+    }
+  } catch(e){
+    weekState = emptyWeek();
+  }
+}
+
+async function loadPreviousWeekTotals(){
+  const prevMonday = addDays(currentMonday, -7);
+  const key = weekKey(currentBodega, prevMonday);
+  try{
+    const r = await storage.get(key, false);
+    if(r && r.value){
+      const parsed = JSON.parse(r.value);
+      const t = totalsFromRecord(parsed);
+      prevWeekTotals = { s: t.s, d: t.d, hasPrev: true };
+    } else {
+      prevWeekTotals = { s: 0, d: 0, hasPrev: false };
+    }
+  } catch(e){
+    prevWeekTotals = { s: 0, d: 0, hasPrev: false };
+  }
+}
+
+async function saveWeek(){
+  const key = weekKey(currentBodega, currentMonday);
+  document.getElementById('saveStatus').textContent = 'Guardando…';
+  try{
+    await storage.set(key, JSON.stringify(weekState), false);
+    document.getElementById('saveStatus').textContent = `Guardado en ${currentBodega} · datos separados por bodega.`;
+  } catch(e){
+    document.getElementById('saveStatus').textContent = 'No se pudo guardar. Revisa tu conexión.';
+  }
+  renderCedisComparison();
+  renderAlerts();
+}
+
+function queueSave(){
+  clearTimeout(saveTimer);
+  document.getElementById('saveStatus').textContent = 'Editando…';
+  saveTimer = setTimeout(saveWeek, 500);
+}
+
+function renderSpark(values, max){
+  const safeMax = max > 0 ? max : 1;
+  return values.map(v => `<i style="height:${Math.max((v/safeMax)*100,4)}%"></i>`).join('');
+}
+
+function renderHeadRow(rowId, firstLabel){
+  const dates = dayDates(currentMonday);
+  const row = document.getElementById(rowId);
+  row.innerHTML = `
+    <th class="product-head">${firstLabel}</th>
+    ${dates.map((d,i) => `<th>${DAY_LABELS[i]}<span class="daynum">${shortDate(d)}</span></th>`).join('')}
+    <th>Semana</th>
+    <th>Tendencia</th>
+  `;
+}
+
+function renderMainTable(){
+  renderHeadRow('mainHeadRow','Equipo');
+  const body = document.getElementById('mainBody');
+  body.innerHTML = '';
+  const globalMax = Math.max(1, ...PRODUCTS.map(p => Math.max(...weekState.products[p])));
+
+  PRODUCTS.forEach(p => {
+    const values = weekState.products[p];
+    const total = values.reduce((a,b)=>a+b,0);
+    const id = slugId(p);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <th>${p}</th>
+      ${values.map((v,i) => `<td class="daycell"><input type="number" min="0" inputmode="numeric" data-product="${p}" data-day="${i}" value="${v}"></td>`).join('')}
+      <td class="total-col" id="total-salida-${id}">${total}</td>
+      <td class="spark-col"><div class="spark" id="spark-salida-${id}">${renderSpark(values, globalMax)}</div></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  const footerRow = document.getElementById('mainFooterRow');
+  const dayTotals = dayIndexes().map(i => PRODUCTS.reduce((sum,p)=> sum + (weekState.products[p][i]||0), 0));
+  const grand = dayTotals.reduce((a,b)=>a+b,0);
+  footerRow.innerHTML = `
+    <th>Subtotal (suma de equipos)</th>
+    ${dayTotals.map((v,i) => `<td id="foot-salida-day-${i}">${v}</td>`).join('')}
+    <td id="foot-salida-grand">${grand}</td>
+    <td></td>
+  `;
+
+  attachInputHandlers();
+}
+
+/* Actualiza solo los totales y las tendencias del indicador 1, sin recrear los inputs
+   (así el usuario no pierde el foco ni el cursor mientras escribe). */
+function updateMainTotals(){
+  const globalMax = Math.max(1, ...PRODUCTS.map(p => Math.max(...weekState.products[p])));
+  PRODUCTS.forEach(p => {
+    const values = weekState.products[p];
+    const total = values.reduce((a,b)=>a+b,0);
+    const id = slugId(p);
+    const totalEl = document.getElementById(`total-salida-${id}`);
+    if(totalEl) totalEl.textContent = total;
+    const sparkEl = document.getElementById(`spark-salida-${id}`);
+    if(sparkEl) sparkEl.innerHTML = renderSpark(values, globalMax);
+  });
+  const dayTotals = dayIndexes().map(i => PRODUCTS.reduce((sum,p)=> sum + (weekState.products[p][i]||0), 0));
+  const grand = dayTotals.reduce((a,b)=>a+b,0);
+  dayTotals.forEach((v,i) => {
+    const el = document.getElementById(`foot-salida-day-${i}`);
+    if(el) el.textContent = v;
+  });
+  const grandEl = document.getElementById('foot-salida-grand');
+  if(grandEl) grandEl.textContent = grand;
+}
+
+function renderDevolProductsTable(){
+  renderHeadRow('devolProductsHeadRow','Equipo');
+  const body = document.getElementById('devolProductsBody');
+  body.innerHTML = '';
+  const globalMax = Math.max(1, ...PRODUCTS.map(p => Math.max(...weekState.devolProducts[p])));
+
+  PRODUCTS.forEach(p => {
+    const values = weekState.devolProducts[p];
+    const total = values.reduce((a,b)=>a+b,0);
+    const id = slugId(p);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <th>${p}</th>
+      ${values.map((v,i) => `<td class="daycell"><input type="number" min="0" inputmode="numeric" data-devolproduct="${p}" data-day="${i}" value="${v}"></td>`).join('')}
+      <td class="total-col" id="total-devol-${id}">${total}</td>
+      <td class="spark-col"><div class="spark" id="spark-devol-${id}">${renderSpark(values, globalMax)}</div></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  const footerRow = document.getElementById('devolProductsFooterRow');
+  const dayTotals = dayIndexes().map(i => PRODUCTS.reduce((sum,p)=> sum + (weekState.devolProducts[p][i]||0), 0));
+  const grand = dayTotals.reduce((a,b)=>a+b,0);
+  footerRow.innerHTML = `
+    <th>Subtotal (suma de equipos)</th>
+    ${dayTotals.map((v,i) => `<td id="foot-devol-day-${i}">${v}</td>`).join('')}
+    <td id="foot-devol-grand">${grand}</td>
+    <td></td>
+  `;
+
+  attachInputHandlers();
+}
+
+/* Igual que updateMainTotals(), pero para el indicador 2 (devoluciones por equipo). */
+function updateDevolProductsTotals(){
+  const globalMax = Math.max(1, ...PRODUCTS.map(p => Math.max(...weekState.devolProducts[p])));
+  PRODUCTS.forEach(p => {
+    const values = weekState.devolProducts[p];
+    const total = values.reduce((a,b)=>a+b,0);
+    const id = slugId(p);
+    const totalEl = document.getElementById(`total-devol-${id}`);
+    if(totalEl) totalEl.textContent = total;
+    const sparkEl = document.getElementById(`spark-devol-${id}`);
+    if(sparkEl) sparkEl.innerHTML = renderSpark(values, globalMax);
+  });
+  const dayTotals = dayIndexes().map(i => PRODUCTS.reduce((sum,p)=> sum + (weekState.devolProducts[p][i]||0), 0));
+  const grand = dayTotals.reduce((a,b)=>a+b,0);
+  dayTotals.forEach((v,i) => {
+    const el = document.getElementById(`foot-devol-day-${i}`);
+    if(el) el.textContent = v;
+  });
+  const grandEl = document.getElementById('foot-devol-grand');
+  if(grandEl) grandEl.textContent = grand;
+}
+
+function renderRegistroTable(){
+  renderHeadRow('registroHeadRow','Registro general');
+  const body = document.getElementById('registroBody');
+  const salidas = weekState.registro.salidas;
+  const devoluciones = weekState.registro.devoluciones;
+  const totalS = salidas.reduce((a,b)=>a+b,0);
+  const totalD = devoluciones.reduce((a,b)=>a+b,0);
+  const maxS = Math.max(1, ...salidas);
+  const maxD = Math.max(1, ...devoluciones);
+
+  body.innerHTML = `
+    <tr class="row-salidas">
+      <th>Salidas totales</th>
+      ${salidas.map((v,i) => `<td class="daycell"><input type="number" min="0" inputmode="numeric" data-registro="salidas" data-day="${i}" value="${v}"></td>`).join('')}
+      <td class="total-col" id="total-registro-salidas">${totalS}</td>
+      <td class="spark-col"><div class="spark" id="spark-registro-salidas">${renderSpark(salidas, maxS)}</div></td>
+    </tr>
+    <tr class="row-devoluciones">
+      <th>Devoluciones totales</th>
+      ${devoluciones.map((v,i) => `<td class="daycell"><input type="number" min="0" inputmode="numeric" data-registro="devoluciones" data-day="${i}" value="${v}"></td>`).join('')}
+      <td class="total-col" id="total-registro-devoluciones">${totalD}</td>
+      <td class="spark-col"><div class="spark" id="spark-registro-devoluciones">${renderSpark(devoluciones, maxD)}</div></td>
+    </tr>
+  `;
+
+  attachInputHandlers();
+}
+
+/* Igual que las anteriores, pero para el indicador 3 (registro general). */
+function updateRegistroTotals(kind){
+  const values = weekState.registro[kind];
+  const total = values.reduce((a,b)=>a+b,0);
+  const max = Math.max(1, ...values);
+  const totalEl = document.getElementById(`total-registro-${kind}`);
+  if(totalEl) totalEl.textContent = total;
+  const sparkEl = document.getElementById(`spark-registro-${kind}`);
+  if(sparkEl) sparkEl.innerHTML = renderSpark(values, max);
+}
+
+function attachInputHandlers(){
+  document.querySelectorAll('input[data-product]').forEach(inp => {
+    inp.oninput = (e) => {
+      const p = e.target.dataset.product;
+      const d = parseInt(e.target.dataset.day,10);
+      let val = parseInt(e.target.value,10);
+      if(isNaN(val) || val < 0) val = 0;
+      weekState.products[p][d] = val;
+      queueSave();
+      updateMainTotals();
+      updateCards();
+    };
+  });
+  document.querySelectorAll('input[data-devolproduct]').forEach(inp => {
+    inp.oninput = (e) => {
+      const p = e.target.dataset.devolproduct;
+      const d = parseInt(e.target.dataset.day,10);
+      let val = parseInt(e.target.value,10);
+      if(isNaN(val) || val < 0) val = 0;
+      weekState.devolProducts[p][d] = val;
+      queueSave();
+      updateDevolProductsTotals();
+      updateCards();
+    };
+  });
+  document.querySelectorAll('input[data-registro]').forEach(inp => {
+    inp.oninput = (e) => {
+      const kind = e.target.dataset.registro;
+      const d = parseInt(e.target.dataset.day,10);
+      let val = parseInt(e.target.value,10);
+      if(isNaN(val) || val < 0) val = 0;
+      weekState.registro[kind][d] = val;
+      queueSave();
+      updateRegistroTotals(kind);
+      updateCards();
+    };
+  });
+}
+
+function formatWowText(curr, prev, hasPrev){
+  if(!hasPrev){
+    return { text: 'Sin semana anterior para comparar', cls: 'flat' };
+  }
+  if(prev === 0){
+    if(curr === 0) return { text: 'Igual que la semana pasada (0)', cls: 'flat' };
+    return { text: `▲ Nuevo (semana pasada: 0)`, cls: 'up' };
+  }
+  const pct = ((curr-prev)/prev)*100;
+  if(Math.abs(pct) < 1) return { text: '→ Igual que la semana pasada', cls: 'flat' };
+  const arrow = pct > 0 ? '▲' : '▼';
+  const cls = pct > 0 ? 'up' : 'down';
+  return { text: `${arrow} ${Math.abs(pct).toFixed(0)}% vs. semana pasada`, cls };
+}
+
+function updateCards(){
+  const salidas = weekState.registro.salidas;
+  const devoluciones = weekState.registro.devoluciones;
+  const grand = salidas.reduce((a,b)=>a+b,0);
+  const devolTotal = devoluciones.reduce((a,b)=>a+b,0);
+
+  document.getElementById('cardTotalSalidas').textContent = grand;
+  const netoPct = grand > 0 ? (((grand-devolTotal)/grand)*100).toFixed(1) : '0.0';
+  document.getElementById('cardSalidasSub').textContent = `${netoPct}% neto tras devoluciones`;
+  document.getElementById('cardTotalDevol').textContent = devolTotal;
+  const tasa = grand > 0 ? ((devolTotal/grand)*100).toFixed(1) : '0.0';
+  document.getElementById('cardTasaDevol').textContent = `${tasa}% sobre salidas`;
+
+  const wowS = formatWowText(grand, prevWeekTotals.s, prevWeekTotals.hasPrev);
+  const wowSEl = document.getElementById('cardSalidasWow');
+  wowSEl.textContent = wowS.text;
+  wowSEl.className = `subline ${wowS.cls}`;
+
+  const wowD = formatWowText(devolTotal, prevWeekTotals.d, prevWeekTotals.hasPrev);
+  const wowDEl = document.getElementById('cardDevolWow');
+  wowDEl.textContent = wowD.text;
+  wowDEl.className = `subline ${wowD.cls}`;
+
+  let topP = '—', topV = 0;
+  PRODUCTS.forEach(p => {
+    const t = weekState.products[p].reduce((a,b)=>a+b,0);
+    if(t > topV){ topV = t; topP = p; }
+  });
+  document.getElementById('cardTopProducto').textContent = topV > 0 ? topP : '—';
+  document.getElementById('cardTopValor').textContent = `${topV} unidades`;
+
+  const promedioSalidas = (grand/DAY_LABELS.length).toFixed(1);
+  document.getElementById('cardPromedioDiaSalidas').textContent = promedioSalidas;
+  const promedioDevol = (devolTotal/DAY_LABELS.length).toFixed(1);
+  document.getElementById('cardPromedioDiaDevol').textContent = promedioDevol;
+}
+
+function updateHeader(){
+  document.getElementById('weekRange').textContent = formatRange(currentMonday);
+  document.getElementById('bodegaTitle').textContent = currentBodega;
+  document.getElementById('chartBodega').textContent = currentBodega;
+  document.getElementById('forecastBodega').textContent = currentBodega;
+}
+
+function renderBodegaSelector(){
+  const sel = document.getElementById('bodegaSelector');
+  sel.innerHTML = CEDIS.map(b => `<button class="bodega-pill ${b===currentBodega?'active':''}" data-bodega="${b}">${b}</button>`).join('');
+  sel.querySelectorAll('.bodega-pill').forEach(btn => {
+    btn.onclick = () => {
+      currentBodega = btn.dataset.bodega;
+      renderAll();
+    };
+  });
+}
+
+async function renderAll(){
+  updateHeader();
+  renderBodegaSelector();
+  await loadWeek(currentBodega, currentMonday);
+  await loadPreviousWeekTotals();
+  renderMainTable();
+  renderDevolProductsTable();
+  renderRegistroTable();
+  updateCards();
+  renderControlChart();
+  renderCedisComparison();
+  renderForecast();
+  renderAlerts();
+}
+
+/* ---------- Alertas automáticas: tasa de devolución alta y semanas fuera de control ---------- */
+const UMBRAL_TASA_DEVOLUCION = 25; // % sobre salidas
+
+async function getWeeklyRegistroSeries(bodega){
+  const prefix = `bodega:${slug(bodega)}:week:`;
+  let keys = [];
+  try{
+    const res = await storage.list(prefix, false);
+    keys = (res && res.keys) ? res.keys : [];
+  } catch(e){ keys = []; }
+  const weeks = [];
+  for(const k of keys){
+    try{
+      const r = await storage.get(k, false);
+      if(r && r.value){
+        const parsed = JSON.parse(r.value);
+        const t = totalsFromRecord(parsed);
+        weeks.push({ date: k.replace(prefix,''), total: t.s, devolTotal: t.d });
+      }
+    } catch(e){ /* skip */ }
+  }
+  weeks.sort((a,b) => a.date.localeCompare(b.date));
+  return weeks.slice(-12);
+}
+
+async function renderAlerts(){
+  const banner = document.getElementById('alertsBanner');
+  const alerts = [];
+
+  const salidas = weekState.registro.salidas.reduce((a,b)=>a+b,0);
+  const devoluciones = weekState.registro.devoluciones.reduce((a,b)=>a+b,0);
+  const tasa = salidas > 0 ? (devoluciones/salidas)*100 : 0;
+
+  if(salidas > 0 && tasa > UMBRAL_TASA_DEVOLUCION){
+    alerts.push({
+      type: 'bad',
+      text: `La tasa de devolución de <strong>${currentBodega}</strong> esta semana es de <strong>${tasa.toFixed(1)}%</strong>, por encima del umbral de ${UMBRAL_TASA_DEVOLUCION}%.`
+    });
+  }
+
+  const weeks = await getWeeklyRegistroSeries(currentBodega);
+  if(weeks.length >= 3){
+    const totals = weeks.map(w => w.total);
+    const devolTotals = weeks.map(w => w.devolTotal);
+
+    const meanS = totals.reduce((a,b)=>a+b,0)/totals.length;
+    const sdS = Math.sqrt(totals.reduce((a,b)=>a+Math.pow(b-meanS,2),0)/totals.length);
+    const uclS = meanS + 2*sdS, lclS = Math.max(0, meanS - 2*sdS);
+
+    const meanD = devolTotals.reduce((a,b)=>a+b,0)/devolTotals.length;
+    const sdD = Math.sqrt(devolTotals.reduce((a,b)=>a+Math.pow(b-meanD,2),0)/devolTotals.length);
+    const uclD = meanD + 2*sdD, lclD = Math.max(0, meanD - 2*sdD);
+
+    const currentS = totals[totals.length-1];
+    const currentD = devolTotals[devolTotals.length-1];
+
+    if(currentS > uclS || currentS < lclS){
+      alerts.push({
+        type: 'warn',
+        text: `Las salidas de esta semana en <strong>${currentBodega}</strong> (${currentS}) están fuera del rango normal de control (${lclS.toFixed(0)}–${uclS.toFixed(0)}), según el historial.`
+      });
+    }
+    if(currentD > uclD || currentD < lclD){
+      alerts.push({
+        type: 'bad',
+        text: `Las devoluciones de esta semana en <strong>${currentBodega}</strong> (${currentD}) están fuera del rango normal de control (${lclD.toFixed(0)}–${uclD.toFixed(0)}), según el historial.`
+      });
+    }
+  }
+
+  if(alerts.length === 0){
+    banner.innerHTML = '';
+    return;
+  }
+
+  banner.innerHTML = `<div class="alerts-wrap">${alerts.map(a => `
+    <div class="alert-item ${a.type === 'warn' ? 'warn-alert' : ''}">
+      <span class="icon">⚠️</span>
+      <span>${a.text}</span>
+    </div>
+  `).join('')}</div>`;
+}
+
+async function renderCedisComparison(){
+  const table = document.getElementById('cedisCompareTable');
+  const rows = [];
+  for(const b of CEDIS){
+    const key = weekKey(b, currentMonday);
+    let total = 0, devol = 0;
+    try{
+      const r = await storage.get(key, false);
+      if(r && r.value){
+        const parsed = JSON.parse(r.value);
+        const t = totalsFromRecord(parsed);
+        total = t.s; devol = t.d;
+      }
+    } catch(e){ /* sin datos aún */ }
+    rows.push({ bodega:b, total, devol });
+  }
+  const grandTotal = rows.reduce((a,r)=>a+r.total,0);
+  const grandDevol = rows.reduce((a,r)=>a+r.devol,0);
+
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>CEDIS</th>
+        <th>Salidas semana</th>
+        <th>Tasa salidas</th>
+        <th>Devolución semana</th>
+        <th>Tasa devolución</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map(r => `
+        <tr class="${r.bodega === currentBodega ? 'current-row' : ''}">
+          <td class="bodega-name">${r.bodega}</td>
+          <td class="num">${r.total}</td>
+          <td class="num">${r.total>0 ? (((r.total-r.devol)/r.total)*100).toFixed(1) : '0.0'}%</td>
+          <td class="num">${r.devol}</td>
+          <td class="num">${r.total>0 ? ((r.devol/r.total)*100).toFixed(1) : '0.0'}%</td>
+        </tr>
+      `).join('')}
+      <tr>
+        <td class="bodega-name">Total CEDIS</td>
+        <td class="num">${grandTotal}</td>
+        <td class="num">${grandTotal>0 ? (((grandTotal-grandDevol)/grandTotal)*100).toFixed(1) : '0.0'}%</td>
+        <td class="num">${grandDevol}</td>
+        <td class="num">${grandTotal>0 ? ((grandDevol/grandTotal)*100).toFixed(1) : '0.0'}%</td>
+      </tr>
+    </tbody>
+  `;
+}
+
+function pearson(x,y){
+  const n = x.length;
+  if(n < 2) return null;
+  const mx = x.reduce((a,b)=>a+b,0)/n, my = y.reduce((a,b)=>a+b,0)/n;
+  let num=0, dx=0, dy=0;
+  for(let i=0;i<n;i++){
+    num += (x[i]-mx)*(y[i]-my);
+    dx += (x[i]-mx)**2;
+    dy += (y[i]-my)**2;
+  }
+  const denom = Math.sqrt(dx*dy);
+  return denom === 0 ? null : num/denom;
+}
+function correlationLabel(r){
+  if(r === null) return 'sin datos suficientes';
+  const abs = Math.abs(r);
+  const strength = abs >= 0.7 ? 'fuerte' : abs >= 0.4 ? 'moderada' : abs >= 0.15 ? 'débil' : 'prácticamente nula';
+  const direction = r > 0.05 ? 'positiva' : r < -0.05 ? 'negativa' : '';
+  return direction ? `${strength} y ${direction}` : strength;
+}
+
+async function renderControlChart(){
+  const panel = document.getElementById('chartPanel');
+  const statsBox = document.getElementById('compareStats');
+  const prefix = `bodega:${slug(currentBodega)}:week:`;
+  let keys = [];
+  try{
+    const res = await storage.list(prefix, false);
+    keys = (res && res.keys) ? res.keys : [];
+  } catch(e){ keys = []; }
+
+  if(keys.length === 0){
+    panel.innerHTML = '<div class="empty-state">Aún no hay suficientes semanas guardadas para mostrar la tendencia.</div>';
+    statsBox.innerHTML = '';
+    return;
+  }
+
+  const weeks = [];
+  for(const k of keys){
+    try{
+      const r = await storage.get(k, false);
+      if(r && r.value){
+        const parsed = JSON.parse(r.value);
+        const t = totalsFromRecord(parsed);
+        const dateStr = k.replace(prefix,'');
+        weeks.push({ date: dateStr, total: t.s, devolTotal: t.d });
+      }
+    } catch(e){ /* skip */ }
+  }
+  weeks.sort((a,b) => a.date.localeCompare(b.date));
+  const last = weeks.slice(-12);
+
+  if(last.length < 2){
+    panel.innerHTML = '<div class="empty-state">Registra al menos dos semanas de esta bodega para ver la carta de control.</div>';
+    statsBox.innerHTML = '';
+    return;
+  }
+
+  const totals = last.map(w => w.total);
+  const devolTotals = last.map(w => w.devolTotal);
+
+  const meanS = totals.reduce((a,b)=>a+b,0)/totals.length;
+  const sdS = Math.sqrt(totals.reduce((a,b)=>a+Math.pow(b-meanS,2),0)/totals.length);
+  const uclS = meanS + 2*sdS;
+  const lclS = Math.max(0, meanS - 2*sdS);
+
+  const meanD = devolTotals.reduce((a,b)=>a+b,0)/devolTotals.length;
+  const sdD = Math.sqrt(devolTotals.reduce((a,b)=>a+Math.pow(b-meanD,2),0)/devolTotals.length);
+  const uclD = meanD + 2*sdD;
+  const lclD = Math.max(0, meanD - 2*sdD);
+
+  const forecastS = linearForecast(totals.map((v,i)=>({x:i,y:v}))).forecast;
+  const forecastD = linearForecast(devolTotals.map((v,i)=>({x:i,y:v}))).forecast;
+
+  const n = last.length; // último punto real = semana actual (índice n-1)
+  const totalPoints = n + 1; // +1 por el punto de pronóstico
+  const W = 1080, H = 240, padL = 46, padR = 46, padT = 20, padB = 30;
+  const maxS = Math.max(uclS, forecastS, ...totals) * 1.15 || 1;
+  const maxD = Math.max(uclD, forecastD, ...devolTotals) * 1.15 || 1;
+  const xStep = (W - padL - padR) / (totalPoints - 1 || 1);
+  const yForS = v => padT + (1 - v/maxS) * (H - padT - padB);
+  const yForD = v => padT + (1 - v/maxD) * (H - padT - padB);
+  const xFor = i => padL + i*xStep;
+
+  const pointsS = totals.map((v,i) => `${xFor(i)},${yForS(v)}`).join(' ');
+  const pointsD = devolTotals.map((v,i) => `${xFor(i)},${yForD(v)}`).join(' ');
+
+  const circlesS = totals.map((v,i) => {
+    const out = v > uclS || v < lclS;
+    return `<circle cx="${xFor(i)}" cy="${yForS(v)}" r="4.5" fill="${out ? '#D6402C' : '#1F5FEB'}" stroke="#fff" stroke-width="1.5" />`;
+  }).join('');
+  const circlesD = devolTotals.map((v,i) => {
+    const out = v > uclD || v < lclD;
+    return `<circle cx="${xFor(i)}" cy="${yForD(v)}" r="4" fill="${out ? '#D6402C' : '#C2760C'}" stroke="#fff" stroke-width="1.5" />`;
+  }).join('');
+
+  const forecastLineS = `<line x1="${xFor(n-1)}" y1="${yForS(totals[n-1])}" x2="${xFor(n)}" y2="${yForS(forecastS)}" stroke="#1F5FEB" stroke-width="2.25" stroke-dasharray="5 4"/>`;
+  const forecastLineD = `<line x1="${xFor(n-1)}" y1="${yForD(devolTotals[n-1])}" x2="${xFor(n)}" y2="${yForD(forecastD)}" stroke="#C2760C" stroke-width="2" stroke-dasharray="5 4"/>`;
+  const forecastCircleS = `<circle cx="${xFor(n)}" cy="${yForS(forecastS)}" r="5" fill="#fff" stroke="#1F5FEB" stroke-width="2.5"/>`;
+  const forecastCircleD = `<circle cx="${xFor(n)}" cy="${yForD(forecastD)}" r="4.5" fill="#fff" stroke="#C2760C" stroke-width="2.5"/>`;
+  const currentWeekLine = `<line x1="${xFor(n-1)}" y1="${padT}" x2="${xFor(n-1)}" y2="${H-padB}" stroke="#D6DEEB" stroke-width="1"/>`;
+
+  const labels = last.map((w,i) => {
+    const d = new Date(w.date + 'T00:00:00');
+    const lbl = `${d.getDate()}/${d.getMonth()+1}`;
+    const isCurrent = i === n-1;
+    return `<text x="${xFor(i)}" y="${H-10}" font-size="10" fill="${isCurrent ? '#171A21' : '#9AA1AC'}" font-weight="${isCurrent ? '700' : '400'}" text-anchor="middle" font-family="IBM Plex Mono, monospace">${lbl}${isCurrent ? ' (hoy)' : ''}</text>`;
+  }).join('') + `<text x="${xFor(n)}" y="${H-10}" font-size="10" fill="#9AA1AC" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-style="italic">pronóst.</text>`;
+
+  panel.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="240" preserveAspectRatio="xMidYMid meet">
+      ${currentWeekLine}
+      <line x1="${padL}" y1="${yForS(uclS)}" x2="${W-padR}" y2="${yForS(uclS)}" stroke="#B9C6EE" stroke-dasharray="4 4" stroke-width="1"/>
+      <line x1="${padL}" y1="${yForS(lclS)}" x2="${W-padR}" y2="${yForS(lclS)}" stroke="#B9C6EE" stroke-dasharray="4 4" stroke-width="1"/>
+      <line x1="${padL}" y1="${yForS(meanS)}" x2="${W-padR}" y2="${yForS(meanS)}" stroke="#9AA1AC" stroke-dasharray="2 3" stroke-width="1"/>
+      <polyline points="${pointsS}" fill="none" stroke="#1F5FEB" stroke-width="2.25"/>
+      ${circlesS}
+      ${forecastLineS}
+      ${forecastCircleS}
+
+      <line x1="${padL}" y1="${yForD(uclD)}" x2="${W-padR}" y2="${yForD(uclD)}" stroke="#F0D2A6" stroke-dasharray="4 4" stroke-width="1"/>
+      <polyline points="${pointsD}" fill="none" stroke="#C2760C" stroke-width="2" stroke-dasharray="0"/>
+      ${circlesD}
+      ${forecastLineD}
+      ${forecastCircleD}
+
+      ${labels}
+      <text x="${padL}" y="14" font-size="10" fill="#1F5FEB" text-anchor="start" font-family="IBM Plex Mono, monospace">SALIDAS (eje izq.)</text>
+      <text x="${W-padR}" y="14" font-size="10" fill="#C2760C" text-anchor="end" font-family="IBM Plex Mono, monospace">DEVOLUCIONES (eje der.)</text>
+    </svg>
+    <div class="chart-legend">
+      <span><i class="dot line" style="background:#1F5FEB"></i> Salidas totales por semana (registro general)</span>
+      <span><i class="dot line" style="background:#C2760C"></i> Devoluciones por semana (registro general)</span>
+      <span><i class="dot" style="background:#D6402C"></i> Fuera de los límites de control (±2σ)</span>
+      <span>Línea punteada y círculo hueco: proyección para la próxima semana. Cada serie usa su propia escala.</span>
+    </div>
+  `;
+
+  const r = pearson(totals, devolTotals);
+  const rLabel = r === null ? '—' : r.toFixed(2);
+  statsBox.innerHTML = `
+    <div class="stat">
+      <div class="label">Promedio salidas / semana</div>
+      <div class="value" style="color:#0E3FB0">${meanS.toFixed(1)}</div>
+      <div class="sub">Pronóstico próxima semana: ${forecastS.toFixed(0)}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Promedio devoluciones / semana</div>
+      <div class="value" style="color:#C2760C">${meanD.toFixed(1)}</div>
+      <div class="sub">Pronóstico próxima semana: ${forecastD.toFixed(0)}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Relación entre ambas</div>
+      <div class="value">${rLabel}</div>
+      <div class="sub">Correlación ${correlationLabel(r)}</div>
+    </div>
+  `;
+}
+
+/* ---------- Demanda y pronóstico por equipo (indicador 1, histórico de la bodega) ---------- */
+function linearForecast(series){
+  // series: [{x, y}] con x = índice de semana (0,1,2...), y = unidades salidas esa semana
+  const n = series.length;
+  if(n === 0) return { slope: 0, forecast: 0 };
+  if(n === 1) return { slope: 0, forecast: series[0].y };
+  const sumX = series.reduce((a,p)=>a+p.x,0);
+  const sumY = series.reduce((a,p)=>a+p.y,0);
+  const sumXY = series.reduce((a,p)=>a+p.x*p.y,0);
+  const sumX2 = series.reduce((a,p)=>a+p.x*p.x,0);
+  const denom = (n*sumX2 - sumX*sumX);
+  const slope = denom === 0 ? 0 : (n*sumXY - sumX*sumY) / denom;
+  const intercept = (sumY - slope*sumX) / n;
+  const nextX = series[series.length-1].x + 1;
+  const forecast = Math.max(0, slope*nextX + intercept);
+  return { slope, forecast };
+}
+
+async function renderForecast(){
+  const chartPanel = document.getElementById('demandChartPanel');
+  const table = document.getElementById('forecastTable');
+  const prefix = `bodega:${slug(currentBodega)}:week:`;
+  let keys = [];
+  try{
+    const res = await storage.list(prefix, false);
+    keys = (res && res.keys) ? res.keys.slice().sort() : [];
+  } catch(e){ keys = []; }
+
+  if(keys.length === 0){
+    chartPanel.innerHTML = '<div class="empty-state">Aún no hay suficientes semanas guardadas para comparar la demanda.</div>';
+    table.innerHTML = '';
+    return;
+  }
+
+  // weeksData: una entrada por semana guardada, en orden cronológico hasta la semana actual
+  const weeksData = [];
+  const last12 = keys.slice(-12);
+  for(const k of last12){
+    try{
+      const r = await storage.get(k, false);
+      if(r && r.value){
+        const parsed = JSON.parse(r.value);
+        const values = {};
+        PRODUCTS.forEach(p => {
+          values[p] = normalizeDays(parsed.products && parsed.products[p]).reduce((a,b)=>a+b,0);
+        });
+        weeksData.push({ dateStr: k.replace(prefix,''), values });
+      }
+    } catch(e){ /* skip */ }
+  }
+
+  if(weeksData.length < 2){
+    chartPanel.innerHTML = '<div class="empty-state">Registra al menos dos semanas de esta bodega para ver el pronóstico.</div>';
+    table.innerHTML = '';
+    return;
+  }
+
+  const series = {};
+  PRODUCTS.forEach(p => {
+    series[p] = weeksData.map((w,i) => ({ x:i, y:w.values[p] }));
+  });
+
+  const stats = PRODUCTS.map(p => {
+    const s = series[p];
+    const avg = s.reduce((a,pt)=>a+pt.y,0) / s.length;
+    const last = s[s.length-1].y;
+    const { slope, forecast } = linearForecast(s);
+    return { producto: p, avg, last, forecast, slope };
+  }).sort((a,b) => b.avg - a.avg);
+
+  const productColors = {
+    "ORB": "#1F5FEB",
+    "PHANTOM F2": "#C2760C",
+    "TV BOX I96 Z8": "#1E8E5A",
+    "PHANTOM WIFI 6": "#D6402C",
+    "SW 2.5G ADMIN": "#7C3AED",
+    "SW 1G ADMIN": "#0EA5A4"
+  };
+
+  /* ---- Línea de tiempo: historial hasta la semana actual + proyección punteada ---- */
+  const n = weeksData.length; // último punto real = semana actual (índice n-1)
+  const forecastByProduct = {};
+  stats.forEach(s => forecastByProduct[s.producto] = s.forecast);
+
+  const maxY = Math.max(1, ...PRODUCTS.flatMap(p => [...series[p].map(pt=>pt.y), forecastByProduct[p]]));
+  const totalPoints = n + 1; // +1 por el punto de pronóstico
+  const W = 1080, H = 260, padL = 46, padR = 20, padT = 20, padB = 34;
+  const xStep = (W - padL - padR) / (totalPoints - 1);
+  const xFor = i => padL + i*xStep;
+  const yFor = v => padT + (1 - v/maxY) * (H - padT - padB);
+
+  const linesSvg = PRODUCTS.map(p => {
+    const color = productColors[p];
+    const pts = series[p];
+    const histPoints = pts.map(pt => `${xFor(pt.x)},${yFor(pt.y)}`).join(' ');
+    const lastPt = pts[pts.length-1];
+    const forecastVal = forecastByProduct[p];
+    const dashedSegment = `<line x1="${xFor(lastPt.x)}" y1="${yFor(lastPt.y)}" x2="${xFor(n)}" y2="${yFor(forecastVal)}" stroke="${color}" stroke-width="2" stroke-dasharray="5 4" />`;
+    const circles = pts.map(pt => `<circle cx="${xFor(pt.x)}" cy="${yFor(pt.y)}" r="3.5" fill="${color}" stroke="#fff" stroke-width="1"/>`).join('');
+    const forecastCircle = `<circle cx="${xFor(n)}" cy="${yFor(forecastVal)}" r="4.5" fill="#fff" stroke="${color}" stroke-width="2.5"/>`;
+    return `
+      <polyline points="${histPoints}" fill="none" stroke="${color}" stroke-width="2.25"/>
+      ${circles}
+      ${dashedSegment}
+      ${forecastCircle}
+    `;
+  }).join('');
+
+  const xLabels = weeksData.map((w,i) => {
+    const d = new Date(w.dateStr + 'T00:00:00');
+    const lbl = `${d.getDate()}/${d.getMonth()+1}`;
+    const isCurrent = i === n-1;
+    return `<text x="${xFor(i)}" y="${H-10}" font-size="10" fill="${isCurrent ? '#171A21' : '#9AA1AC'}" font-weight="${isCurrent ? '700' : '400'}" text-anchor="middle" font-family="IBM Plex Mono, monospace">${lbl}${isCurrent ? ' (hoy)' : ''}</text>`;
+  }).join('') + `<text x="${xFor(n)}" y="${H-10}" font-size="10" fill="#9AA1AC" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-style="italic">pronóst.</text>`;
+
+  const currentWeekLine = `<line x1="${xFor(n-1)}" y1="${padT}" x2="${xFor(n-1)}" y2="${H-padB}" stroke="#D6DEEB" stroke-width="1"/>`;
+
+  chartPanel.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="260" preserveAspectRatio="xMidYMid meet">
+      ${currentWeekLine}
+      ${linesSvg}
+      ${xLabels}
+    </svg>
+    <div class="chart-legend">
+      ${PRODUCTS.map(p => `<span><i class="dot line" style="background:${productColors[p]}"></i> ${p}</span>`).join('')}
+    </div>
+    <div class="chart-legend">
+      <span>Línea sólida: historial real hasta la semana actual (marcada como "hoy"). Línea punteada y círculo hueco: proyección para la próxima semana.</span>
+    </div>
+  `;
+
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Equipo</th>
+        <th>Promedio semanal</th>
+        <th>Semana actual</th>
+        <th>Pronóstico próxima semana</th>
+        <th>Tendencia</th>
+        <th>Recomendación</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${stats.map(s => {
+        const arrow = s.slope > 0.5 ? '&#8599; subiendo' : s.slope < -0.5 ? '&#8600; bajando' : '&#8594; estable';
+        const arrowColor = s.slope > 0.5 ? 'var(--good)' : s.slope < -0.5 ? 'var(--bad)' : 'var(--muted)';
+        let recomendacion, recColor;
+        if(s.forecast > s.avg * 1.15){
+          recomendacion = 'Considerar aumentar el pedido';
+          recColor = 'var(--warn)';
+        } else if(s.forecast < s.avg * 0.85){
+          recomendacion = 'Se puede reducir el pedido';
+          recColor = 'var(--muted)';
+        } else {
+          recomendacion = 'Mantener el pedido habitual';
+          recColor = 'var(--good)';
+        }
+        return `
+          <tr>
+            <td class="bodega-name">${s.producto}</td>
+            <td class="num">${s.avg.toFixed(1)}</td>
+            <td class="num">${s.last}</td>
+            <td class="num">${s.forecast.toFixed(0)}</td>
+            <td class="num" style="color:${arrowColor}">${arrow}</td>
+            <td style="color:${recColor};font-weight:600;">${recomendacion}</td>
+          </tr>
+        `;
+      }).join('')}
+    </tbody>
+  `;
+}
+
+document.getElementById('prevWeek').onclick = () => { viendoSemanaActual = false; currentMonday = addDays(currentMonday,-7); renderAll(); };
+document.getElementById('nextWeek').onclick = () => { viendoSemanaActual = false; currentMonday = addDays(currentMonday,7); renderAll(); };
+document.getElementById('gotoToday').onclick = () => { viendoSemanaActual = true; currentMonday = getMonday(new Date()); renderAll(); };
+
+/* Si se está viendo la semana en curso (sin haber navegado a otra manualmente),
+   revisa cada minuto si ya empezó una semana nueva y salta a ella solo. */
+setInterval(() => {
+  if(!viendoSemanaActual) return;
+  const hoyMonday = getMonday(new Date());
+  if(isoDate(hoyMonday) !== isoDate(currentMonday)){
+    currentMonday = hoyMonday;
+    renderAll();
+  }
+}, 60000);
+
+async function exportToExcel(){
+  const btn = document.getElementById('exportBtn');
+  btn.disabled = true;
+  btn.textContent = 'Preparando archivo…';
+
+  try{
+    const wb = XLSX.utils.book_new();
+    const resumenRows = [["CEDIS","Semana (lunes)","Semana (sábado)","Salidas (registro general)","Devoluciones (registro general)","Tasa devolución %"]];
+    const pronosticoEquiposRows = [["CEDIS","Equipo","Promedio semanal","Semana actual","Pronóstico próxima semana","Tendencia","Recomendación"]];
+    const pronosticoGeneralRows = [["CEDIS","Semanas registradas","Promedio salidas/semana","Pronóstico salidas próxima semana","Promedio devoluciones/semana","Pronóstico devoluciones próxima semana","Correlación salidas vs. devoluciones"]];
+    let anyData = false;
+
+    for(const bodega of CEDIS){
+      const prefix = `bodega:${slug(bodega)}:week:`;
+      let keys = [];
+      try{
+        const res = await storage.list(prefix, false);
+        keys = (res && res.keys) ? res.keys.slice().sort() : [];
+      } catch(e){ keys = []; }
+
+      const sheetRows = [[
+        "Fecha","Día",
+        ...PRODUCTS.map(p => `${p} (salida)`),
+        "Subtotal salidas por equipo",
+        ...PRODUCTS.map(p => `${p} (devolución)`),
+        "Subtotal devoluciones por equipo",
+        "Registro general · Salidas",
+        "Registro general · Devoluciones"
+      ]];
+
+      // Series por semana para calcular el pronóstico de este CEDIS
+      const productSeries = {};
+      PRODUCTS.forEach(p => productSeries[p] = []);
+      const registroSalidasSeries = [];
+      const registroDevolucionesSeries = [];
+
+      for(const k of keys){
+        let r;
+        try{ r = await storage.get(k, false); } catch(e){ continue; }
+        if(!r || !r.value) continue;
+        anyData = true;
+        const parsed = JSON.parse(r.value);
+        const mondayStr = k.replace(prefix,'');
+        const monday = new Date(mondayStr + 'T00:00:00');
+        const registro = parsed.registro || { salidas: null, devoluciones: parsed.devoluciones || zeros() };
+        let weekTotalS = 0, weekTotalD = 0;
+
+        PRODUCTS.forEach(p => {
+          const total = normalizeDays(parsed.products && parsed.products[p]).reduce((a,b)=>a+b,0);
+          productSeries[p].push(total);
+        });
+
+        for(let i=0;i<DAY_LABELS.length;i++){
+          const d = addDays(monday,i);
+          const salidaValues = PRODUCTS.map(p => (parsed.products && parsed.products[p]) ? (parsed.products[p][i]||0) : 0);
+          const subtotalSalidas = salidaValues.reduce((a,b)=>a+b,0);
+          const devolValues = PRODUCTS.map(p => (parsed.devolProducts && parsed.devolProducts[p]) ? (parsed.devolProducts[p][i]||0) : 0);
+          const subtotalDevol = devolValues.reduce((a,b)=>a+b,0);
+          const regS = registro.salidas ? (registro.salidas[i]||0) : 0;
+          const regD = registro.devoluciones ? (registro.devoluciones[i]||0) : 0;
+          weekTotalS += regS;
+          weekTotalD += regD;
+          sheetRows.push([
+            isoDate(d), DAY_LABELS[i],
+            ...salidaValues, subtotalSalidas,
+            ...devolValues, subtotalDevol,
+            regS, regD
+          ]);
+        }
+        const saturday = addDays(monday,5);
+        resumenRows.push([bodega, mondayStr, isoDate(saturday), weekTotalS, weekTotalD, weekTotalS>0 ? Number(((weekTotalD/weekTotalS)*100).toFixed(1)) : 0]);
+        registroSalidasSeries.push(weekTotalS);
+        registroDevolucionesSeries.push(weekTotalD);
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+      ws['!cols'] = Array(sheetRows[0].length).fill({wch:14});
+      XLSX.utils.book_append_sheet(wb, ws, bodega.substring(0,31));
+
+      // Pronóstico por equipo (mismo cálculo que el panel "Demanda y pronóstico por equipo")
+      if(registroSalidasSeries.length >= 2){
+        PRODUCTS.forEach(p => {
+          const values = productSeries[p];
+          const s = values.map((y,x) => ({x,y}));
+          const avg = values.reduce((a,b)=>a+b,0) / values.length;
+          const last = values[values.length-1];
+          const { slope, forecast } = linearForecast(s);
+          const arrow = slope > 0.5 ? 'Subiendo' : slope < -0.5 ? 'Bajando' : 'Estable';
+          let recomendacion;
+          if(forecast > avg * 1.15) recomendacion = 'Considerar aumentar el pedido';
+          else if(forecast < avg * 0.85) recomendacion = 'Se puede reducir el pedido';
+          else recomendacion = 'Mantener el pedido habitual';
+          pronosticoEquiposRows.push([bodega, p, Number(avg.toFixed(1)), last, Number(forecast.toFixed(0)), arrow, recomendacion]);
+        });
+
+        // Pronóstico general (mismo cálculo que la carta de control salidas vs. devoluciones)
+        const sSeries = registroSalidasSeries.map((y,x)=>({x,y}));
+        const dSeries = registroDevolucionesSeries.map((y,x)=>({x,y}));
+        const avgS = registroSalidasSeries.reduce((a,b)=>a+b,0) / registroSalidasSeries.length;
+        const avgD = registroDevolucionesSeries.reduce((a,b)=>a+b,0) / registroDevolucionesSeries.length;
+        const foreS = linearForecast(sSeries).forecast;
+        const foreD = linearForecast(dSeries).forecast;
+        const r = pearson(registroSalidasSeries, registroDevolucionesSeries);
+        const rLabel = r === null ? 'Sin datos suficientes' : `${r.toFixed(2)} (${correlationLabel(r)})`;
+        pronosticoGeneralRows.push([bodega, registroSalidasSeries.length, Number(avgS.toFixed(1)), Number(foreS.toFixed(0)), Number(avgD.toFixed(1)), Number(foreD.toFixed(0)), rLabel]);
+      } else {
+        pronosticoGeneralRows.push([bodega, registroSalidasSeries.length, '', '', '', '', 'Registra al menos 2 semanas para calcular el pronóstico']);
+      }
+    }
+
+    const resumenWs = XLSX.utils.aoa_to_sheet(resumenRows);
+    resumenWs['!cols'] = [{wch:14},{wch:14},{wch:14},{wch:16},{wch:18},{wch:16}];
+    XLSX.utils.book_append_sheet(wb, resumenWs, "Resumen");
+
+    const pronosticoEquiposWs = XLSX.utils.aoa_to_sheet(pronosticoEquiposRows);
+    pronosticoEquiposWs['!cols'] = [{wch:14},{wch:16},{wch:16},{wch:14},{wch:22},{wch:12},{wch:28}];
+    XLSX.utils.book_append_sheet(wb, pronosticoEquiposWs, "Pronóstico equipos");
+
+    const pronosticoGeneralWs = XLSX.utils.aoa_to_sheet(pronosticoGeneralRows);
+    pronosticoGeneralWs['!cols'] = [{wch:14},{wch:16},{wch:18},{wch:22},{wch:20},{wch:24},{wch:30}];
+    XLSX.utils.book_append_sheet(wb, pronosticoGeneralWs, "Pronóstico general");
+
+    if(!anyData){
+      alert('Todavía no hay semanas guardadas en ninguna bodega. Llena algunos días primero y vuelve a exportar.');
+    } else {
+      const fecha = isoDate(new Date());
+      XLSX.writeFile(wb, `historial_CEDIS_${fecha}.xlsx`);
+    }
+  } catch(e){
+    alert('No se pudo generar el archivo de Excel. Intenta de nuevo.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '&#8681; Descargar historial en Excel';
+  }
+}
+document.getElementById('exportBtn').onclick = exportToExcel;
+
+renderAll();
+</script>
+</body>
+</html>
